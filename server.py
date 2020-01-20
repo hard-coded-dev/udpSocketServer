@@ -15,6 +15,7 @@ def connectionLoop(sock):
    while True:
       data, addr = sock.recvfrom(1024)
       data = str(data)
+      print(data,addr)
       if addr in clients:
          if 'heartbeat' in data:
             clients[addr]['lastBeat'] = datetime.now()
@@ -26,9 +27,16 @@ def connectionLoop(sock):
             message = {"cmd": 0,"player":{"id":str(addr)}}
             m = json.dumps(message)
             for c in clients:
-               sock.sendto(bytes(m,'utf8'), (c[0],c[1]))
+                print("new client: ", str(m), "cast to ", str(c)) 
+                sock.sendto(bytes(m,'utf8'), (c[0],c[1]))
+            for c in clients:
+                if c is not addr:
+                    message = {"cmd": 0,"player":{"id":str(c)}}
+                    m = json.dumps(message)
+                    print('old client: ', str(c), 'cast to ', str(addr))
+                    sock.sendto(bytes(m,'utf8'), (addr[0],addr[1]))
 
-def cleanClients():
+def cleanClients(sock):
    while True:
       for c in list(clients.keys()):
          if (datetime.now() - clients[c]['lastBeat']).total_seconds() > 5:
@@ -36,6 +44,10 @@ def cleanClients():
             clients_lock.acquire()
             del clients[c]
             clients_lock.release()
+            message = {"cmd": 2, "player":{"id":str(c)}}
+            m = json.dumps(message)
+            for c in clients:
+                sock.sendto(bytes(m,'utf8'), (c[0],c[1]))
       time.sleep(1)
 
 def gameLoop(sock):
@@ -50,8 +62,9 @@ def gameLoop(sock):
          player['color'] = clients[c]['color']
          GameState['players'].append(player)
       s=json.dumps(GameState)
-      print(s)
+      print("game: ", s)
       for c in clients:
+         print("client: ", str(c[0]), str(c[1]))
          sock.sendto(bytes(s,'utf8'), (c[0],c[1]))
       clients_lock.release()
       time.sleep(1)
@@ -62,9 +75,9 @@ def main():
    s.bind(('', port))
    start_new_thread(gameLoop, (s,))
    start_new_thread(connectionLoop, (s,))
-   start_new_thread(cleanClients,())
+   start_new_thread(cleanClients,(s,))
    while True:
       time.sleep(1)
 
 if __name__ == '__main__':
-   main()
+    main()
