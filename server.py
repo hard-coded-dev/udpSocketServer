@@ -5,6 +5,7 @@ from _thread import *
 import threading
 from datetime import datetime
 import json
+import ast
 
 clients_lock = threading.Lock()
 connected = 0
@@ -14,26 +15,33 @@ clients = {}
 def connectionLoop(sock):
    while True:
       data, addr = sock.recvfrom(1024)
-      data = str(data)
-      print(data,addr)
+      data = ast.literal_eval(data.decode('utf-8'))
+      print(str(addr) + " : " + str(data))
       if addr in clients:
-         if 'heartbeat' in data:
-            clients[addr]['lastBeat'] = datetime.now()
+         if 'message' in data and data['message'] == 'heartbeat':
+             clients[addr]['lastBeat'] = datetime.now()
+         if 'pos' in data:
+             clients[addr]['pos'] = str(data['pos'])
       else:
-         if 'connect' in data:
+         if 'message' in data and data['message'] == 'connect':
             clients[addr] = {}
             clients[addr]['lastBeat'] = datetime.now()
             clients[addr]['color'] = 0
             pos = { "x" : random.uniform( 0.0, 5.0 ), "y": 0, "z": random.uniform( 0.0, 5.0 ) }
             clients[addr]['pos'] = pos
-            message = {"cmd": 0,"player":{"id":str(addr),"pos":str(pos)}}
-            m = json.dumps(message)
+            
             for c in clients:
-                print("new client: ", str(m), "cast to ", str(c)) 
-                sock.sendto(bytes(m,'utf8'), (c[0],c[1]))
+               if c is addr:
+                  message = {"cmd": 0,"player":{"id":str(addr),"pos":str(pos)}}
+               else:
+                  message = {"cmd": 1,"player":{"id":str(addr),"pos":str(pos)}}
+               m = json.dumps(message)
+               print("new client: ", str(m), "cast to ", str(c)) 
+               sock.sendto(bytes(m,'utf8'), (c[0],c[1]))
+               
             for c in clients:
                 if c is not addr:
-                    message = {"cmd": 0,"player":{"id":str(c)}}
+                    message = {"cmd": 1,"player":{"id":str(c)}}
                     m = json.dumps(message)
                     print('old client: ', str(c), 'cast to ', str(addr))
                     sock.sendto(bytes(m,'utf8'), (addr[0],addr[1]))
@@ -46,7 +54,7 @@ def cleanClients(sock):
             clients_lock.acquire()
             del clients[c]
             clients_lock.release()
-            message = {"cmd": 2, "player":{"id":str(c)}}
+            message = {"cmd": 3, "player":{"id":str(c)}}
             m = json.dumps(message)
             for c in clients:
                 sock.sendto(bytes(m,'utf8'), (c[0],c[1]))
@@ -54,7 +62,7 @@ def cleanClients(sock):
 
 def gameLoop(sock):
    while True:
-      GameState = {"cmd": 1, "players": []}
+      GameState = {"cmd": 2, "players": []}
       clients_lock.acquire()
       print (clients)
       for c in clients:
