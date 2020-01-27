@@ -21,7 +21,7 @@ def connectionLoop(sock):
          if 'message' in data and data['message'] == 'heartbeat':
              clients[addr]['lastBeat'] = datetime.now()
          if 'pos' in data:
-             clients[addr]['pos'] = str(data['pos'])
+             clients[addr]['pos'] = data['pos']
       else:
          if 'message' in data and data['message'] == 'connect':
             clients[addr] = {}
@@ -32,16 +32,16 @@ def connectionLoop(sock):
             
             for c in clients:
                if c is addr:
-                  message = {"cmd": 0,"player":{"id":str(addr),"pos":str(pos)}}
+                  message = {"cmd": 0,"player":{"id":str(addr),"pos":pos}}
                else:
-                  message = {"cmd": 1,"player":{"id":str(addr),"pos":str(pos)}}
+                  message = {"cmd": 1,"player":{"id":str(addr),"pos":pos}}
                m = json.dumps(message)
                print("new client: ", str(m), "cast to ", str(c)) 
                sock.sendto(bytes(m,'utf8'), (c[0],c[1]))
                
             for c in clients:
                 if c is not addr:
-                    message = {"cmd": 1,"player":{"id":str(c)}}
+                    message = {"cmd": 1,"player":{"id":str(c), "pos":clients[c]['pos']}}
                     m = json.dumps(message)
                     print('old client: ', str(c), 'cast to ', str(addr))
                     sock.sendto(bytes(m,'utf8'), (addr[0],addr[1]))
